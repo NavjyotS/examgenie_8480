@@ -254,6 +254,48 @@ Return ONLY valid JSON matching this exact schema (no markdown, no explanation):
     }
   }
 
+  /// Sanitises a raw JSON string returned by Gemini before parsing.
+  ///
+  /// Handles common Gemini quirks:
+  ///  • Strips leading/trailing markdown fences (```json … ```)
+  ///  • Fixes unquoted keys that start with a dash, e.g. `-marks: 2` → `"marks": 2`
+  ///  • Quotes any remaining bare (unquoted) property keys
+  String _sanitizeJsonResponse(String raw) {
+    String s = raw.trim();
+
+    // 1. Strip markdown code fences if present
+    if (s.startsWith('```')) {
+      s = s
+          .replaceAll(RegExp(r'^```[a-zA-Z]*\n?'), '')
+          .replaceAll(RegExp(r'```$'), '')
+          .trim();
+    }
+
+    // 2. Fix keys that start with a stray dash: -key: value → "key": value
+    //    Matches a dash at the start of a line (possibly with leading whitespace)
+    //    followed by an unquoted identifier and a colon.
+    s = s.replaceAllMapped(
+      RegExp(r'([\{\[,]\s*\n?\s*)-([a-zA-Z_][a-zA-Z0-9_]*)\s*:'),
+      (m) => '${m.group(1)}"${m.group(2)}":',
+    );
+
+    // 3. Also handle the case where the dash-key appears at the very start of a line
+    //    without a preceding bracket/comma (e.g. after a newline in the middle of an object)
+    s = s.replaceAllMapped(
+      RegExp(r'^\s*-([a-zA-Z_][a-zA-Z0-9_]*)\s*:', multiLine: true),
+      (m) => '"${m.group(1)}":',
+    );
+
+    // 4. Quote any remaining completely unquoted keys (bare word followed by colon)
+    //    Only matches keys that are not already quoted.
+    s = s.replaceAllMapped(
+      RegExp(r'(?<=[{\[,]\s*)([a-zA-Z_][a-zA-Z0-9_]*)\s*:'),
+      (m) => '"${m.group(1)}":',
+    );
+
+    return s;
+  }
+
   @override
   Widget build(BuildContext context) {
     final chatState = ref.watch(chatNotifierProvider(_config));
@@ -285,7 +327,9 @@ Return ONLY valid JSON matching this exact schema (no markdown, no explanation):
               '✅ Raw response received:\n\n${next.response}';
           try {
             final jsonStr = next.response.trim();
-            final jsonData = jsonDecode(jsonStr) as Map<String, dynamic>;
+            final jsonData =
+                jsonDecode(_sanitizeJsonResponse(jsonStr))
+                    as Map<String, dynamic>;
             final exam = GeneratedExam.fromJson(jsonData);
             context.push(
               AppRoutes.examViewer,
