@@ -205,7 +205,7 @@ class _SourceUploadScreenState extends State<SourceUploadScreen>
         ),
         const SizedBox(height: 12),
         Text(
-          'Upload Study\nNotes - v0.2',
+          'Upload Study\nNotes - v0.3',
           style: Theme.of(
             context,
           ).textTheme.headlineLarge?.copyWith(height: 1.2),
