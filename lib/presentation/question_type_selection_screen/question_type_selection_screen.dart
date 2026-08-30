@@ -37,19 +37,25 @@ class _QuestionTypeSelectionScreenState
 
   Map<String, dynamic>? _patternFile;
   final TextEditingController _instructionsController = TextEditingController();
+  final TextEditingController _debugRequestController = TextEditingController();
+  final TextEditingController _debugResponseController =
+      TextEditingController();
   final _formKey = GlobalKey<FormState>();
 
   bool _isGenerating = false;
+  bool _showDebugPanel = false;
 
   static const _config = ChatConfig(
     provider: 'GEMINI',
-    model: 'gemini/gemini-2.5-flash',
+    model: 'gemini-3.5-flash-lite',
     streaming: false,
   );
 
   @override
   void dispose() {
     _instructionsController.dispose();
+    _debugRequestController.dispose();
+    _debugResponseController.dispose();
     super.dispose();
   }
 
@@ -106,7 +112,7 @@ Return ONLY valid JSON matching this exact schema (no markdown, no explanation):
         {
           "id": "string - unique id like mcq_1",
           "questionText": "string",
-          "options": ["A. ...", "B. ...", "C. ...", "D. ..."] (only for MCQ, null otherwise),
+          "options": ["A. ...", "B. ...", "C. ...", "D. ..."],
           "answerKey": "string - correct answer or model answer",
           "explanation": "string - brief explanation",
           "marks": number
@@ -120,40 +126,70 @@ Return ONLY valid JSON matching this exact schema (no markdown, no explanation):
   List<Map<String, dynamic>> _buildMessages() {
     final contentParts = <Map<String, dynamic>>[];
 
-    // Add all uploaded note files as images
+    // Add all uploaded note files as inline base64 image data
     for (final file in widget.uploadedFiles) {
       final bytes = file['bytes'] as List<int>?;
       final mimeType = file['mimeType'] as String? ?? 'image/jpeg';
       if (bytes != null) {
         final base64String = base64Encode(bytes);
-        final dataUri = 'data:$mimeType;base64,$base64String';
+        final base64DataUri = 'data:$mimeType;base64,$base64String';
         contentParts.add({
           'type': 'image_url',
-          'image_url': {'url': dataUri},
+          'image_url': {'url': base64DataUri},
         });
       }
     }
 
-    // Add pattern file if provided
+    // Add pattern file if provided as inline base64 image data
     if (_patternFile != null) {
       final bytes = _patternFile!['bytes'] as List<int>?;
       final mimeType = _patternFile!['mimeType'] as String? ?? 'image/jpeg';
       if (bytes != null) {
         final base64String = base64Encode(bytes);
-        final dataUri = 'data:$mimeType;base64,$base64String';
+        final base64DataUri = 'data:$mimeType;base64,$base64String';
         contentParts.add({
           'type': 'image_url',
-          'image_url': {'url': dataUri},
+          'image_url': {'url': base64DataUri},
         });
       }
     }
 
-    // Add the prompt text
+    // Add the prompt text last
     contentParts.add({'type': 'text', 'text': _buildExamPrompt()});
 
     return [
       {'role': 'user', 'content': contentParts},
     ];
+  }
+
+  /// Build a debug-friendly version of messages (truncates base64 image data)
+  List<Map<String, dynamic>> _buildDebugMessages(
+    List<Map<String, dynamic>> messages,
+  ) {
+    return messages.map((msg) {
+      final content = msg['content'];
+      if (content is List) {
+        final debugContent = content.map((part) {
+          if (part is Map && part['type'] == 'image_url') {
+            final imageUrlObj = part['image_url'];
+            final url =
+                (imageUrlObj is Map ? imageUrlObj['url'] : imageUrlObj)
+                    as String? ??
+                '';
+            final truncated = url.length > 80
+                ? '${url.substring(0, 80)}...[base64 truncated, ${url.length} chars]'
+                : url;
+            return {
+              'type': 'image_url',
+              'image_url': {'url': truncated},
+            };
+          }
+          return part;
+        }).toList();
+        return {...msg, 'content': debugContent};
+      }
+      return msg;
+    }).toList();
   }
 
   Future<void> _generateExam() async {
@@ -171,34 +207,49 @@ Return ONLY valid JSON matching this exact schema (no markdown, no explanation):
       return;
     }
 
+    final messages = _buildMessages();
+    final parameters = {'temperature': 0.4, 'max_tokens': 4096};
+
+    // Log request payload to debug panel
+    final requestPayload = {
+      'provider': _config.provider,
+      'model': _config.model,
+      'messages': _buildDebugMessages(messages),
+      'stream': false,
+      'response_format': {'type': 'json_object'},
+      'parameters': parameters,
+    };
+    _debugRequestController.text = const JsonEncoder.withIndent(
+      '  ',
+    ).convert(requestPayload);
+    _debugResponseController.text = '⏳ Waiting for response...';
+
     setState(() => _isGenerating = true);
 
     try {
       await ref
           .read(chatNotifierProvider(_config).notifier)
-          .sendMessage(
-            _buildMessages(),
-            parameters: {
-              'temperature': 0.4,
-              'max_tokens': 4096,
-              'response_format': {'type': 'json_object'},
-            },
-          );
+          .sendMessage(messages, parameters: parameters);
     } catch (e) {
       if (mounted) {
-        setState(() => _isGenerating = false);
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: const Text(
-              'Generation failed. Please check your connection and try again.',
-            ),
-            backgroundColor: AppTheme.error.withAlpha(230),
-            behavior: SnackBarBehavior.floating,
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(12),
-            ),
-          ),
-        );
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (mounted) {
+            setState(() => _isGenerating = false);
+            _debugResponseController.text = '❌ Exception caught:\n$e';
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: const Text(
+                  'Generation failed. Please check your connection and try again.',
+                ),
+                backgroundColor: AppTheme.error.withAlpha(230),
+                behavior: SnackBarBehavior.floating,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+              ),
+            );
+          }
+        });
       }
     }
   }
@@ -208,35 +259,48 @@ Return ONLY valid JSON matching this exact schema (no markdown, no explanation):
     final chatState = ref.watch(chatNotifierProvider(_config));
 
     ref.listen<ChatState>(chatNotifierProvider(_config), (previous, next) {
-      if (next.error != null) {
-        if (_isGenerating) setState(() => _isGenerating = false);
-        Fluttertoast.showToast(
-          msg: next.error.toString(),
-          backgroundColor: Colors.red,
-          toastLength: Toast.LENGTH_LONG,
-        );
+      if (next.error != null && previous?.error != next.error) {
+        // Use addPostFrameCallback to avoid setState during build
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (mounted) {
+            setState(() => _isGenerating = false);
+            _debugResponseController.text =
+                '❌ Error from API:\n${next.error.toString()}';
+            Fluttertoast.showToast(
+              msg: next.error.toString(),
+              backgroundColor: Colors.red,
+              toastLength: Toast.LENGTH_LONG,
+            );
+          }
+        });
       }
       if (previous?.isLoading == true &&
           !next.isLoading &&
           next.response.isNotEmpty) {
-        setState(() => _isGenerating = false);
-        try {
-          final jsonStr = next.response.trim();
-          final jsonData = jsonDecode(jsonStr) as Map<String, dynamic>;
-          final exam = GeneratedExam.fromJson(jsonData);
-          if (mounted) {
+        // Use addPostFrameCallback to avoid setState during build
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (!mounted) return;
+          setState(() => _isGenerating = false);
+          _debugResponseController.text =
+              '✅ Raw response received:\n\n${next.response}';
+          try {
+            final jsonStr = next.response.trim();
+            final jsonData = jsonDecode(jsonStr) as Map<String, dynamic>;
+            final exam = GeneratedExam.fromJson(jsonData);
             context.push(
               AppRoutes.examViewer,
               extra: {'examData': exam.toJson()},
             );
+          } catch (e) {
+            _debugResponseController.text =
+                '❌ Parse error:\n$e\n\n--- Raw response ---\n${next.response}';
+            Fluttertoast.showToast(
+              msg: 'Failed to parse exam response. Please try again.',
+              backgroundColor: Colors.red,
+              toastLength: Toast.LENGTH_LONG,
+            );
           }
-        } catch (e) {
-          Fluttertoast.showToast(
-            msg: 'Failed to parse exam response. Please try again.',
-            backgroundColor: Colors.red,
-            toastLength: Toast.LENGTH_LONG,
-          );
-        }
+        });
       }
     });
 
@@ -290,6 +354,12 @@ Return ONLY valid JSON matching this exact schema (no markdown, no explanation):
                           ),
                           const SizedBox(height: 12),
                           _buildInstructionsField(context),
+                          const SizedBox(height: 24),
+                          _buildDebugToggle(context),
+                          if (_showDebugPanel) ...[
+                            const SizedBox(height: 12),
+                            _buildDebugPanel(context),
+                          ],
                           const SizedBox(height: 100),
                         ],
                       ),
@@ -306,6 +376,152 @@ Return ONLY valid JSON matching this exact schema (no markdown, no explanation):
             fileCount: widget.uploadedFiles.length,
             totalQuestions: _totalQuestions,
           ),
+      ],
+    );
+  }
+
+  Widget _buildDebugToggle(BuildContext context) {
+    return GestureDetector(
+      onTap: () => setState(() => _showDebugPanel = !_showDebugPanel),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+        decoration: BoxDecoration(
+          color: AppTheme.glassBackground,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(
+            color: _showDebugPanel
+                ? AppTheme.secondary.withAlpha(120)
+                : AppTheme.glassBorder,
+          ),
+        ),
+        child: Row(
+          children: [
+            CustomIconWidget(
+              iconName: 'bug_report',
+              color: _showDebugPanel ? AppTheme.secondary : AppTheme.textMuted,
+              size: 18,
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Text(
+                'Debug Panel — API Request & Response',
+                style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                  color: _showDebugPanel
+                      ? AppTheme.secondary
+                      : AppTheme.textMuted,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ),
+            CustomIconWidget(
+              iconName: _showDebugPanel
+                  ? 'keyboard_arrow_up'
+                  : 'keyboard_arrow_down',
+              color: AppTheme.textMuted,
+              size: 18,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildDebugPanel(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: const Color(0xFF020617),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: AppTheme.secondary.withAlpha(80)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          _buildDebugSection(
+            context,
+            label: '📤 Request Payload (sent to Gemini API)',
+            controller: _debugRequestController,
+            hintText:
+                'Request payload will appear here after tapping Generate.',
+          ),
+          const SizedBox(height: 16),
+          _buildDebugSection(
+            context,
+            label: '📥 Raw Response (from Gemini API)',
+            controller: _debugResponseController,
+            hintText: 'API response will appear here after generation.',
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildDebugSection(
+    BuildContext context, {
+    required String label,
+    required TextEditingController controller,
+    required String hintText,
+  }) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            Expanded(
+              child: Text(
+                label,
+                style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                  color: AppTheme.secondary,
+                  fontWeight: FontWeight.w700,
+                  letterSpacing: 0.3,
+                ),
+              ),
+            ),
+            GestureDetector(
+              onTap: () => controller.clear(),
+              child: const CustomIconWidget(
+                iconName: 'clear',
+                color: AppTheme.textMuted,
+                size: 16,
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 8),
+        TextField(
+          controller: controller,
+          readOnly: true,
+          maxLines: 10,
+          style: const TextStyle(
+            fontFamily: 'monospace',
+            fontSize: 11,
+            color: Color(0xFF94a3b8),
+            height: 1.5,
+          ),
+          decoration: InputDecoration(
+            hintText: hintText,
+            hintStyle: const TextStyle(
+              fontFamily: 'monospace',
+              fontSize: 11,
+              color: Color(0xFF475569),
+            ),
+            filled: true,
+            fillColor: const Color(0xFF0f172a),
+            border: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(10),
+              borderSide: BorderSide(color: AppTheme.glassBorder),
+            ),
+            enabledBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(10),
+              borderSide: BorderSide(color: AppTheme.glassBorder),
+            ),
+            focusedBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(10),
+              borderSide: BorderSide(color: AppTheme.secondary.withAlpha(120)),
+            ),
+            contentPadding: const EdgeInsets.all(12),
+          ),
+        ),
       ],
     );
   }
