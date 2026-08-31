@@ -2,10 +2,10 @@ import 'package:dio/dio.dart';
 
 final Dio _dio = Dio();
 
-Future<Map<String, dynamic>> callLambdaFunction(
+Future<Map<String, dynamic>> callSupabaseFunction(
   String endpoint,
   Map<String, dynamic> payload, {
-  Map<String, String>? headers,
+  required String apiKey,
 }) async {
   try {
     final response = await _dio.post<Map<String, dynamic>>(
@@ -13,7 +13,8 @@ Future<Map<String, dynamic>> callLambdaFunction(
       data: payload,
       options: Options(headers: {
         'Content-Type': 'application/json',
-        ...?headers,
+        'Authorization': 'Bearer $apiKey',
+        'apikey': apiKey,
       }),
     );
     return response.data ?? {};
@@ -24,23 +25,13 @@ Future<Map<String, dynamic>> callLambdaFunction(
         final data = error.response?.data as Map<String, dynamic>;
         if (data['error'] != null) {
           print(
-            'Lambda Function Error: ${data['error']}, details: ${data['details']}',
+            'Supabase Function Error: ${data['error']}, details: ${data['details']}',
           );
           throw Exception(data['error']);
         }
-      } else if (error.response?.data is List) {
-        final dataList = error.response?.data as List;
-        if (dataList.isNotEmpty && dataList.first is Map) {
-          final errorObj = dataList.first['error'];
-          if (errorObj != null) {
-            final message = errorObj['message'] ?? errorObj.toString();
-            print('API Error Message: $message');
-            throw Exception(message);
-          }
-        }
       }
     }
-    print('Lambda function error: $error');
+    print('Supabase function error: $error');
     rethrow;
   }
 }

@@ -48,7 +48,7 @@ class _QuestionTypeSelectionScreenState
   static const _config = ChatConfig(
     provider: 'GEMINI',
     model: 'gemini-3.5-flash-lite',
-    streaming: false,
+    streaming: true,
   );
 
   @override
