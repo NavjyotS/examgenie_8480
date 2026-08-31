@@ -1,0 +1,33 @@
+{
+    "provider": "GEMINI",
+    "model": "gemini-2.0-flash-lite",
+    "messages": [
+        {
+            "role": "system",
+            "content": "You are an expert exam paper generator. Generate a well-structured exam based on the provided study material. Return ONLY valid JSON matching the specified schema — no markdown, no code fences, no extra text."
+        },
+        {
+            "role": "user",
+            "content": [
+                {
+                    "type": "image_url",
+                    "image_url": {
+                        "url": "data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAAAQABAAD..."
+                    }
+                },
+                {
+                    "type": "text",
+                    "text": "Generate an exam from the above study material with the following configuration:\n- 5 Multiple Choice Questions (2 marks each)\n- 3 Short Answer Questions (4 marks each)\n- 2 Long Answer Questions (10 marks each)\n- Total Marks: 50\n\nReturn ONLY a JSON object matching this exact schema:\n{\n  \"title\": \"string\",\n  \"totalMarks\": number,\n  \"timeAllowed\": \"string\",\n  \"instructions\": [\"string\"],\n  \"sections\": [\n    {\n      \"type\": \"MCQ\" | \"SHORT\" | \"LONG\",\n      \"title\": \"string\",\n      \"instructions\": \"string\",\n      \"questions\": [\n        {\n          \"id\": \"string\",\n          \"questionText\": \"string\",\n          \"options\": [\"string\"],\n          \"answerKey\": \"string\",\n          \"explanation\": \"string\",\n          \"marks\": number\n        }\n      ]\n    }\n  ]\n}"
+                }
+            ]
+        }
+    ],
+    "stream": false,
+    "response_format": {
+        "type": "json_object"
+    },
+    "parameters": {
+        "temperature": 0.7,
+        "max_tokens": 4096
+    }
+}

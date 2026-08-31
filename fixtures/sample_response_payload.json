@@ -1,0 +1,140 @@
+{
+    "title": "Guilds and Trade in Indian Society Practice Exam",
+    "totalMarks": 50,
+    "timeAllowed": "60 minutes",
+    "instructions": [
+        "Read each question carefully before answering.",
+        "Select the correct option for each Multiple Choice Question.",
+        "Answer Short Answer Questions in 3–5 sentences.",
+        "Answer Long Answer Questions in detail with relevant examples.",
+        "All questions are compulsory."
+    ],
+    "sections": [
+        {
+            "type": "MCQ",
+            "title": "Section A: Multiple Choice Questions",
+            "instructions": "Choose the correct option for each of the following questions. Each question carries 2 marks.",
+            "questions": [
+                {
+                    "id": "mcq_1",
+                    "questionText": "According to the notes, who was usually elected along with executive officers to manage a guild's activities?",
+                    "options": [
+                        "A. A monarch",
+                        "B. A head",
+                        "C. A moneylender",
+                        "D. A foreigner"
+                    ],
+                    "answerKey": "B. A head",
+                    "explanation": "Point 2 states that each guild had a head who was usually elected along with executive officers to manage its activities.",
+                    "marks": 2
+                },
+                {
+                    "id": "mcq_2",
+                    "questionText": "How did guilds bring people together rather than as competitors?",
+                    "options": [
+                        "A. As rivals",
+                        "B. As enemies",
+                        "C. As collaborators",
+                        "D. As outsiders"
+                    ],
+                    "answerKey": "C. As collaborators",
+                    "explanation": "Point 3 indicates that guilds brought people together as collaborators rather than competitors.",
+                    "marks": 2
+                },
+                {
+                    "id": "mcq_3",
+                    "questionText": "What did guilds allow people to share for mutual benefit?",
+                    "options": [
+                        "A. Resources, market information, and workspace",
+                        "B. Only currency",
+                        "C. Political power",
+                        "D. Military troops"
+                    ],
+                    "answerKey": "A. Resources, market information, and workspace",
+                    "explanation": "Point 3 mentions allowing members to share resources, market information, and workspace for mutual benefit.",
+                    "marks": 2
+                },
+                {
+                    "id": "mcq_4",
+                    "questionText": "Which of the following groups were mentioned as being able to make rules for their own groups, giving them autonomy?",
+                    "options": [
+                        "A. Cultivators, traders, herders, moneylenders, and artisans",
+                        "B. Only foreign merchants",
+                        "C. Military generals",
+                        "D. Kings and queens"
+                    ],
+                    "answerKey": "A. Cultivators, traders, herders, moneylenders, and artisans",
+                    "explanation": "Point 4 explicitly lists cultivators, traders, herders, moneylenders, and artisans as having the ability to make rules for their own groups.",
+                    "marks": 2
+                },
+                {
+                    "id": "mcq_5",
+                    "questionText": "Guilds are described as an excellent example of what aspect of Indian society?",
+                    "options": [
+                        "A. Self-organizing ability",
+                        "B. External colonization",
+                        "C. Strict imperial control",
+                        "D. Industrial stagnation"
+                    ],
+                    "answerKey": "A. Self-organizing ability",
+                    "explanation": "Point 5 highlights that guilds were an excellent example of the self-organizing ability of Indian society, helping trade flourish over a long period.",
+                    "marks": 2
+                }
+            ]
+        },
+        {
+            "type": "SHORT",
+            "title": "Section B: Short Answer Questions",
+            "instructions": "Answer each of the following questions in 3–5 sentences. Each question carries 4 marks.",
+            "questions": [
+                {
+                    "id": "short_1",
+                    "questionText": "Explain the role of guilds in regulating trade and protecting the interests of their members in ancient Indian society.",
+                    "options": [],
+                    "answerKey": "Guilds regulated trade by setting standards for goods and prices, ensuring fair practices among members. They protected members' interests by providing a collective voice against exploitation and resolving disputes internally. Guilds also maintained quality control and upheld the reputation of their trade.",
+                    "explanation": "This question tests understanding of the regulatory and protective functions of guilds as described in the study material.",
+                    "marks": 4
+                },
+                {
+                    "id": "short_2",
+                    "questionText": "How did the structure of guilds contribute to the economic development of ancient India?",
+                    "options": [],
+                    "answerKey": "Guilds contributed to economic development by organizing skilled workers and merchants into efficient units that could produce and trade goods at scale. Their collaborative structure reduced competition-related waste and promoted specialization. By sharing resources and market information, guilds enabled members to expand trade networks and increase overall prosperity.",
+                    "explanation": "This question assesses knowledge of the economic impact of guild organization on ancient Indian commerce.",
+                    "marks": 4
+                },
+                {
+                    "id": "short_3",
+                    "questionText": "Describe the governance structure of a typical guild in ancient India.",
+                    "options": [],
+                    "answerKey": "A typical guild was governed by an elected head who worked alongside executive officers to manage day-to-day activities. The guild had the authority to create its own rules and regulations, giving it significant autonomy. Members were expected to follow these internal rules, and disputes were settled within the guild framework.",
+                    "explanation": "This question evaluates understanding of the internal governance and autonomy of guilds.",
+                    "marks": 4
+                }
+            ]
+        },
+        {
+            "type": "LONG",
+            "title": "Section C: Long Answer Questions",
+            "instructions": "Answer each of the following questions in detail with relevant examples and analysis. Each question carries 10 marks.",
+            "questions": [
+                {
+                    "id": "long_1",
+                    "questionText": "Critically analyse the significance of guilds in shaping the socio-economic fabric of ancient Indian society. How did they promote trade, ensure social cohesion, and contribute to the self-governance of communities?",
+                    "options": [],
+                    "answerKey": "Guilds (shrenis) were one of the most important institutions in ancient Indian society, playing a multifaceted role in both economic and social spheres. Economically, guilds organized artisans, traders, and merchants into cohesive units that could regulate production, standardize quality, and set fair prices. This prevented exploitation and ensured a stable marketplace. By pooling resources, market information, and workspace, guild members could operate more efficiently than individual traders, fostering specialization and innovation.\n\nSocially, guilds promoted cohesion by bringing together people of similar trades as collaborators rather than competitors. They created a sense of community and shared identity among members, which helped maintain social order. The internal governance structure — with an elected head and executive officers — gave guilds significant autonomy and the ability to resolve disputes without external intervention, reducing social friction.\n\nIn terms of self-governance, guilds exemplified the self-organizing ability of Indian society. Groups such as cultivators, traders, herders, moneylenders, and artisans could create and enforce their own rules, reflecting a decentralized model of governance that complemented the state. This autonomy allowed guilds to adapt quickly to changing economic conditions and protect their members' interests effectively.\n\nOverall, guilds were instrumental in sustaining long-term trade prosperity, maintaining social harmony, and demonstrating the capacity of Indian communities to self-regulate — making them a cornerstone of ancient Indian civilization.",
+                    "explanation": "This question requires a comprehensive analysis of guilds covering economic, social, and governance dimensions, testing higher-order thinking and the ability to synthesize information from the study material.",
+                    "marks": 10
+                },
+                {
+                    "id": "long_2",
+                    "questionText": "Compare and contrast the role of guilds in ancient India with modern trade associations or industry bodies. In what ways are they similar, and how have the challenges and functions evolved over time?",
+                    "options": [],
+                    "answerKey": "Ancient Indian guilds and modern trade associations share several fundamental similarities in purpose and structure, though they differ significantly in scope, legal framework, and the challenges they address.\n\nSimilarities: Both institutions serve to organize members of a particular trade or industry into a collective body that can advocate for shared interests. Like ancient guilds, modern trade associations set industry standards, provide networking opportunities, and offer platforms for dispute resolution. Both also engage in knowledge sharing — guilds shared market information and workspace, while modern associations publish research, host conferences, and facilitate best-practice exchange. The governance model is also comparable: both have elected leadership and defined rules that members are expected to follow.\n\nDifferences: Ancient guilds operated within a largely localized economy, focusing on specific crafts or trades within a region. Modern trade associations function in a globalized economy, dealing with international supply chains, digital commerce, and complex regulatory environments. The legal autonomy of ancient guilds — their ability to create binding rules for members — was more absolute, whereas modern associations operate within a framework of national and international law. Additionally, ancient guilds often had social and welfare functions (supporting members in times of hardship), while modern associations are primarily focused on commercial and policy advocacy.\n\nEvolution of challenges: Ancient guilds faced challenges such as maintaining quality standards, managing local competition, and navigating relationships with ruling authorities. Modern trade associations must contend with rapid technological change, global competition, environmental regulations, and digital disruption.\n\nIn conclusion, while the core purpose of collective organization for mutual benefit remains constant, the scale, complexity, and regulatory context of trade bodies have evolved dramatically from ancient guilds to their modern counterparts.",
+                    "explanation": "This question tests the ability to draw connections between historical institutions and contemporary equivalents, requiring analytical and comparative thinking beyond the immediate study material.",
+                    "marks": 10
+                }
+            ]
+        }
+    ]
+}
