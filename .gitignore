@@ -48,3 +48,6 @@ app.*.map.json
 android/app/.cxx
 lib.zip
 env.json
+# Widget Preview related
+.widget_preview/
+/node_modules/

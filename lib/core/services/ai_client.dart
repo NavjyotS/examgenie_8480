@@ -1,37 +1,45 @@
+// lib/core/services/ai_client.dart
 import 'package:dio/dio.dart';
 
 final Dio _dio = Dio();
 
-Future<Map<String, dynamic>> callSupabaseFunction(
+Future<Map<String, dynamic>> callApiEndpoint(
   String endpoint,
   Map<String, dynamic> payload, {
-  required String apiKey,
+  required String jwtToken,
 }) async {
   try {
     final response = await _dio.post<Map<String, dynamic>>(
       endpoint,
       data: payload,
-      options: Options(headers: {
-        'Content-Type': 'application/json',
-        'Authorization': 'Bearer $apiKey',
-        'apikey': apiKey,
-      }),
+      options: Options(
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer $jwtToken',
+        },
+        validateStatus: (status) => status != null && status < 500,
+      ),
     );
+
+    final errorData = response.data;
+    if (response.statusCode != 200) {
+      if (errorData != null && errorData['error'] != null) {
+        throw Exception(errorData['error']);
+      }
+      throw Exception('Request failed with status: ${response.statusCode}');
+    }
+
     return response.data ?? {};
   } on DioException catch (error) {
-    if (error.response?.data != null) {
-      print('API Error Response Data: ${error.response?.data}');
-      if (error.response?.data is Map) {
-        final data = error.response?.data as Map<String, dynamic>;
-        if (data['error'] != null) {
-          print(
-            'Supabase Function Error: ${data['error']}, details: ${data['details']}',
-          );
-          throw Exception(data['error']);
-        }
+    final errorResponseData = error.response?.data;
+    if (errorResponseData != null && errorResponseData is Map) {
+      print('API Error Response Data: $errorResponseData');
+      if (errorResponseData['error'] != null) {
+        print('API Error: ${errorResponseData['error']}, message: ${errorResponseData['message']}');
+        throw Exception(errorResponseData['error']);
       }
     }
-    print('Supabase function error: $error');
+    print('HTTP request error: $error');
     rethrow;
   }
 }

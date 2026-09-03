@@ -1,17 +1,12 @@
+// lib/core/services/aiIntegrations/chat_completion_service.dart
 import 'dart:convert';
 import 'package:dio/dio.dart';
 import '../ai_client.dart';
 
-// Replace with your actual Supabase Edge Function URL
-const String _supabaseFunctionUrl = String.fromEnvironment(
-  'SUPABASE_FUNCTION_URL',
-  defaultValue: 'https://YOUR_SUPABASE_PROJECT_REF.supabase.co/functions/v1/generate-exam',
-);
-
-// Replace with your Supabase Anon/Public Key
-const String _supabaseAnonKey = String.fromEnvironment(
-  'SUPABASE_ANON_KEY',
-  defaultValue: 'YOUR_SUPABASE_ANON_KEY',
+// Pointing directly to your working Cloudflare Worker endpoint
+const String _apiEndpointUrl = String.fromEnvironment(
+  'API_BASE_URL',
+  defaultValue: 'https://cloudflare-worker-process-getexamdata.navjyotsingh80.workers.dev/api/getExamData',
 );
 
 Future<Map<String, dynamic>> getChatCompletion(
@@ -20,33 +15,58 @@ Future<Map<String, dynamic>> getChatCompletion(
   List<Map<String, dynamic>> messages, {
   Map<String, dynamic> parameters = const {},
 }) async {
-  // Extract response_format from parameters and place at root level if needed
   final mutableParams = Map<String, dynamic>.from(parameters);
   final responseFormat = mutableParams.remove('response_format');
 
-  // Format payload according to Supabase Edge Function requirements
   final payload = <String, dynamic>{
-    'provider': provider,
     'model': rawModel,
     'messages': messages,
-    'stream': false,
     if (responseFormat != null) 'response_format': responseFormat,
     'parameters': mutableParams,
   };
 
-  // Log outgoing payload for debugging purposes
-  print('📤 [getChatCompletion] Outgoing Payload Prepared...');// ${jsonEncode(payload)}');
+  // Using the active test JWT token from your working curl request
+  const String jwtToken = String.fromEnvironment(
+    'WORKER_JWT_TOKEN',
+    defaultValue: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0NSIsImVtYWlsIjoidGVzdEBleGFtcGxlLmNvbSIsImlhdCI6MTc4ODQxNzQyMSwiZXhwIjoxNzg4NDIxMDIxfQ.GMgJYA1vEfkTiahcbaNPRyv3ILmRe7P_4qjw9cE_SRU',
+  );
+
+  // Structured Log: Request Overview
+  print('╔════════════════════════════════════════════════════════════════');
+  print('║ 📤 [AI_SERVICE] OUTGOING CHAT COMPLETION REQUEST');
+  print('╠────────────────────────────────────────────────────────────────');
+  print('║ 🔗 URL      : $_apiEndpointUrl');
+  print('║ 🔑 JWT Token: $jwtToken');
+  print('║ 🤖 Model    : $rawModel (Provider: $provider)');
+  print('║ 📦 Payload  :\n${const JsonEncoder.withIndent('  ').convert(payload)}');
+  print('╚════════════════════════════════════════════════════════════════');
 
   try {
-    final result = await callSupabaseFunction(
-      _supabaseFunctionUrl,
+    final result = await callApiEndpoint(
+      _apiEndpointUrl,
       payload,
-      apiKey: _supabaseAnonKey,
+      jwtToken: jwtToken,
     );
-    print('✅ [getChatCompletion] Successfully received response.');
+
+    // Structured Log: Success Response
+    print('╔════════════════════════════════════════════════════════════════');
+    print('║ ✅ [AI_SERVICE] SUCCESSFUL RESPONSE RECEIVED');
+    print('╠────────────────────────────────────────────────────────────────');
+    print('║ 🔗 URL      : $_apiEndpointUrl');
+    print('║ 📥 Response :\n${const JsonEncoder.withIndent('  ').convert(result)}');
+    print('╚════════════════════════════════════════════════════════════════');
+
     return result;
-  } catch (e) {
-    print('❌ [getChatCompletion] Error during execution: $e');
+  } catch (e, stackTrace) {
+    // Structured Log: Error Details
+    print('╔════════════════════════════════════════════════════════════════');
+    print('║ ❌ [AI_SERVICE] EXECUTION ERROR');
+    print('╠────────────────────────────────────────────────────────────────');
+    print('║ 🔗 URL       : $_apiEndpointUrl');
+    print('║ 🔑 JWT Token : $jwtToken');
+    print('║ ⚠️ Error     : $e');
+    print('║ 📚 StackTrace:\n$stackTrace');
+    print('╚════════════════════════════════════════════════════════════════');
     rethrow;
   }
 }
@@ -60,49 +80,13 @@ Future<void> getStreamingChatCompletion(
   required void Function(Exception error) onError,
   Map<String, dynamic> parameters = const {},
 }) async {
-  final mutableParams = Map<String, dynamic>.from(parameters);
-  final responseFormat = mutableParams.remove('response_format');
-
-  final payload = <String, dynamic>{
-    'provider': provider,
-    'model': rawModel,
-    'messages': messages,
-    'stream': true,
-    if (responseFormat != null) 'response_format': responseFormat,
-    'parameters': mutableParams,
-  };
-
-  print('📤 [getStreamingChatCompletion] Outgoing Payload Prepared...');
-
   try {
-    final dio = Dio();
-    final response = await dio.post<ResponseBody>(
-      _supabaseFunctionUrl,
-      data: payload,
-      options: Options(
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': 'Bearer $_supabaseAnonKey',
-          'apikey': _supabaseAnonKey,
-        },
-        responseType: ResponseType.stream,
-      ),
-    );
-
-    print('📥 [getStreamingChatCompletion] Connection established. Starting stream read loop...');
-    
-    // Read the incoming byte stream and accumulate it directly as text chunks
-    await for (final chunk in response.data!.stream) {
-      final decodedChunk = utf8.decode(chunk);
-      
-      // Pass the raw text fragment directly to onChunk so ChatNotifier builds up the full string
-      onChunk({'text': decodedChunk});
-    }
-    
-    print('🏁 [getStreamingChatCompletion] Stream finished. Triggering onComplete().');
+    print('⚠️ [AI_SERVICE:STREAM] Streaming requested, falling back to standard completion.');
+    final result = await getChatCompletion(provider, rawModel, messages, parameters: parameters);
+    onChunk(result);
     onComplete();
-  } catch (error) {
-    print('❌ [getStreamingChatCompletion] Critical Streaming Exception: $error');
-    onError(error is Exception ? error : Exception(error.toString()));
+  } catch (e) {
+    print('❌ [AI_SERVICE:STREAM] Fallback error encountered: $e');
+    onError(e is Exception ? e : Exception(e.toString()));
   }
 }

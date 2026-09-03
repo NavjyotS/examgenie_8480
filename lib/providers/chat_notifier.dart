@@ -90,17 +90,22 @@ class ChatNotifier extends StateNotifier<ChatState> {
               state.fullResponse as List? ?? [],
             )..add(chunk);
 
-            // Flexible content extraction supporting multiple schema formats
             String? content;
             
             // 1. Check OpenAI / standard Delta format
             content = chunk['choices']?[0]?['delta']?['content'] as String?;
             
-            // 2. Check direct text or wrapper formats if OpenAI style is absent
+            // 2. Check direct text or wrapper formats
             if (content == null && chunk.containsKey('text')) {
               content = chunk['text']?.toString();
             } else if (content == null && chunk.containsKey('content')) {
               content = chunk['content']?.toString();
+            }
+
+            // 3. Fallback: If this is a direct structured exam JSON (contains sections or title), 
+            // serialize it to a JSON string so state.response captures it properly.
+            if (content == null && (chunk.containsKey('sections') || chunk.containsKey('title'))) {
+              content = jsonEncode(chunk);
             }
 
             state = state.copyWith(
@@ -129,9 +134,15 @@ class ChatNotifier extends StateNotifier<ChatState> {
           parameters: parameters,
         );
         
-        final content =
-            result['choices']?[0]?['message']?['content'] as String? ?? 
-            result['text']?.toString() ?? '';
+        String content = '';
+        if (result.containsKey('choices')) {
+          content = result['choices']?[0]?['message']?['content'] as String? ?? '';
+        } else if (result.containsKey('text')) {
+          content = result['text']?.toString() ?? '';
+        } else if (result.containsKey('sections') || result.containsKey('title')) {
+          // Direct structured exam JSON returned from worker
+          content = jsonEncode(result);
+        }
             
         state = ChatState(
           response: content,
