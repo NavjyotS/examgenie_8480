@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../core/services/aiIntegrations/chat_completion_service.dart';
 
@@ -61,13 +62,15 @@ class ChatNotifier extends StateNotifier<ChatState> {
   ChatNotifier({
     required this.provider,
     required this.model,
-    this.streaming = true,
+    required this.streaming,
   }) : super(const ChatState());
 
   Future<void> sendMessage(
     List<Map<String, dynamic>> messages, {
     Map<String, dynamic> parameters = const {},
   }) async {
+    print('🚀 [ChatNotifier] sendMessage invoked. Streaming enabled: $streaming');
+
     state = ChatState(
       response: '',
       fullResponse: streaming ? <Map<String, dynamic>>[] : null,
@@ -81,11 +84,30 @@ class ChatNotifier extends StateNotifier<ChatState> {
           model,
           messages,
           onChunk: (chunk) {
+            print('📥 [ChatNotifier] onChunk received: $chunk');
+
             final chunks = List<Map<String, dynamic>>.from(
               state.fullResponse as List? ?? [],
             )..add(chunk);
-            final content =
-                chunk['choices']?[0]?['delta']?['content'] as String?;
+
+            String? content;
+            
+            // 1. Check OpenAI / standard Delta format
+            content = chunk['choices']?[0]?['delta']?['content'] as String?;
+            
+            // 2. Check direct text or wrapper formats
+            if (content == null && chunk.containsKey('text')) {
+              content = chunk['text']?.toString();
+            } else if (content == null && chunk.containsKey('content')) {
+              content = chunk['content']?.toString();
+            }
+
+            // 3. Fallback: If this is a direct structured exam JSON (contains sections or title), 
+            // serialize it to a JSON string so state.response captures it properly.
+            if (content == null && (chunk.containsKey('sections') || chunk.containsKey('title'))) {
+              content = jsonEncode(chunk);
+            }
+
             state = state.copyWith(
               fullResponse: chunks,
               response: content != null
@@ -93,20 +115,35 @@ class ChatNotifier extends StateNotifier<ChatState> {
                   : state.response,
             );
           },
-          onComplete: () => state = state.copyWith(isLoading: false),
-          onError: (error) =>
-              state = state.copyWith(error: error, isLoading: false),
+          onComplete: () {
+            print('✅ [ChatNotifier] Stream onComplete triggered. Setting isLoading = false.');
+            state = state.copyWith(isLoading: false);
+          },
+          onError: (error) {
+            print('❌ [ChatNotifier] Stream onError triggered: $error');
+            state = state.copyWith(error: error, isLoading: false);
+          },
           parameters: parameters,
         );
       } else {
+        print('🔄 [ChatNotifier] Executing non-streaming call (getChatCompletion)...');
         final result = await getChatCompletion(
           provider,
           model,
           messages,
           parameters: parameters,
         );
-        final content =
-            result['choices']?[0]?['message']?['content'] as String? ?? '';
+        
+        String content = '';
+        if (result.containsKey('choices')) {
+          content = result['choices']?[0]?['message']?['content'] as String? ?? '';
+        } else if (result.containsKey('text')) {
+          content = result['text']?.toString() ?? '';
+        } else if (result.containsKey('sections') || result.containsKey('title')) {
+          // Direct structured exam JSON returned from worker
+          content = jsonEncode(result);
+        }
+            
         state = ChatState(
           response: content,
           fullResponse: result,
@@ -114,6 +151,7 @@ class ChatNotifier extends StateNotifier<ChatState> {
         );
       }
     } catch (error) {
+      print('❌ [ChatNotifier] Critical error inside sendMessage: $error');
       state = state.copyWith(
         error: error is Exception ? error : Exception(error.toString()),
         isLoading: false,

@@ -1,51 +1,83 @@
+// lib/core/services/aiIntegrations/chat_completion_service.dart
 import 'dart:convert';
 import 'package:dio/dio.dart';
+import 'package:http/http.dart' as http;
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import '../ai_client.dart';
 
-const String _chatCompletionEndpoint = String.fromEnvironment(
-  'AWS_LAMBDA_CHAT_COMPLETION_URL',
+// Pointing directly to your backend route handlers
+const String _apiEndpointUrl = String.fromEnvironment(
+  'API_BASE_URL',
+  defaultValue: 'http://localhost:3000/api/getExamData',
 );
 
-/// Resolves the full OpenAI-compatible target URL for a given provider.
-String _getProviderTargetUrl(String provider) {
-  switch (provider.toUpperCase()) {
-    case 'GEMINI':
-      return 'https://generativelanguage.googleapis.com/v1beta/openai/chat/completions';
-    case 'OPENAI':
-      return 'https://api.openai.com/v1/chat/completions';
-    case 'ANTHROPIC':
-      return 'https://api.anthropic.com/v1/messages';
-    default:
-      return 'https://generativelanguage.googleapis.com/v1beta/openai/chat/completions';
+const String _tokenEndpointUrl = String.fromEnvironment(
+  'TOKEN_BASE_URL',
+  defaultValue: 'http://localhost:3000/api/token',
+);
+
+const String _deviceApiKey = String.fromEnvironment(
+  'DEVICE_API_KEY',
+  defaultValue: 'YOUR_API_KEY',
+);
+
+/// Service to handle short-lived JWT acquisition, caching, and rotation
+/// Service to handle short-lived JWT acquisition, caching, and rotation
+class TokenService {
+  static final FlutterSecureStorage _storage = const FlutterSecureStorage();
+
+  static Future<String> getValidToken() async {
+    final cached = await _storage.read(key: 'jwt_token');
+    final expiryStr = await _storage.read(key: 'jwt_expiry');
+
+    if (cached != null && expiryStr != null) {
+      final expiry = DateTime.parse(expiryStr);
+      if (DateTime.now().isBefore(expiry.subtract(const Duration(minutes: 1)))) {
+        return cached; // Token is still valid with buffer margin
+      }
+    }
+
+    // Token is missing or approaching expiration — request a new one
+    final response = await http.post(
+      Uri.parse(_tokenEndpointUrl),
+      headers: {
+        'X-API-Key': _deviceApiKey,
+        'Content-Type': 'application/json',
+      },
+    );
+
+    if (response.statusCode == 200) {
+      final data = jsonDecode(response.body);
+      final token = data['token'] as String;
+      final expiresIn = data['expiresIn'] as int;
+
+      await _storage.write(key: 'jwt_token', value: token);
+      await _storage.write(
+        key: 'jwt_expiry',
+        value: DateTime.now()
+            .add(Duration(seconds: expiresIn))
+            .toIso8601String(),
+      );
+
+      return token;
+    } else {
+      throw Exception('Failed to obtain short-lived JWT token: ${response.statusCode}');
+    }
+  }
+
+  static Future<void> clearToken() async {
+    await _storage.delete(key: 'jwt_token');
+    await _storage.delete(key: 'jwt_expiry');
   }
 }
 
-/// Sanitizes the model string by removing any leading 'gemini/' prefix.
-String _sanitizeModel(String model) {
-  if (model.startsWith('gemini/')) {
-    return model.replaceFirst('gemini/', '');
+/// Maps Cloudflare or third-party model identifiers to valid Google Gemini model names
+String _resolveGeminiModel(String rawModel) {
+  final modelLower = rawModel.toLowerCase();
+  if (modelLower.contains('llama') || modelLower.startsWith('@cf/')) {
+    return 'gemini-3.5-flash-lite';
   }
-  return model;
-}
-
-/// Resolves request headers for the given provider during local development proxying.
-Map<String, String> _getProviderHeaders(String provider) {
-  switch (provider.toUpperCase()) {
-    case 'GEMINI':
-      const key = String.fromEnvironment('GEMINI_API_KEY');
-      return key.isNotEmpty ? {'Authorization': 'Bearer $key'} : {};
-    case 'OPENAI':
-      const key = String.fromEnvironment('OPENAI_API_KEY');
-      return key.isNotEmpty ? {'Authorization': 'Bearer $key'} : {};
-    case 'ANTHROPIC':
-      const key = String.fromEnvironment('ANTHROPIC_API_KEY');
-      return key.isNotEmpty ? {'x-api-key': key} : {};
-    case 'PERPLEXITY':
-      const key = String.fromEnvironment('PERPLEXITY_API_KEY');
-      return key.isNotEmpty ? {'Authorization': 'Bearer $key'} : {};
-    default:
-      return {};
-  }
+  return rawModel;
 }
 
 Future<Map<String, dynamic>> getChatCompletion(
@@ -54,47 +86,70 @@ Future<Map<String, dynamic>> getChatCompletion(
   List<Map<String, dynamic>> messages, {
   Map<String, dynamic> parameters = const {},
 }) async {
-  final targetUrl = _getProviderTargetUrl(provider);
-  final cleanModel = _sanitizeModel(rawModel);
-
-  final uri = Uri.parse(_chatCompletionEndpoint);
-  final dynamicEndpoint = uri
-      .replace(queryParameters: {...uri.queryParameters, 'url': targetUrl})
-      .toString();
-
-  // Extract response_format from parameters and place at root level
   final mutableParams = Map<String, dynamic>.from(parameters);
   final responseFormat = mutableParams.remove('response_format');
 
-  final bool isProxy = uri.host == 'connector.rocket.new';
-  final Map<String, dynamic> payload;
+  final resolvedModel = _resolveGeminiModel(rawModel);
 
-  if (isProxy) {
-    // OpenAI/Gemini compatible payload format for direct CORS proxy forwarding
-    payload = <String, dynamic>{
-      'model': cleanModel,
-      'messages': messages,
-      'stream': false,
-      if (responseFormat != null) 'response_format': responseFormat,
-      ...mutableParams,
-    };
-  } else {
-    // Wrapper payload format for AWS Lambda function
-    payload = <String, dynamic>{
-      'provider': provider,
-      'model': cleanModel,
-      'messages': messages,
-      'stream': false,
-      if (responseFormat != null) 'response_format': responseFormat,
-      'parameters': mutableParams,
-    };
+  final payload = <String, dynamic>{
+    'model': resolvedModel,
+    'messages': messages,
+    if (responseFormat != null) 'response_format': responseFormat,
+    'parameters': mutableParams,
+  };
+
+  // Obtain dynamically managed short-lived JWT through TokenService
+  String resolvedJwtToken;
+  try {
+    resolvedJwtToken = await TokenService.getValidToken();
+  } catch (e) {
+    print('❌ [AI_SERVICE] Failed to retrieve valid JWT token: $e');
+    rethrow;
   }
 
-  return await callLambdaFunction(
-    dynamicEndpoint,
-    payload,
-    headers: isProxy ? _getProviderHeaders(provider) : null,
-  );
+  // Structured Log: Request Overview
+  print('╔════════════════════════════════════════════════════════════════');
+  print('║ 📤 [AI_SERVICE] OUTGOING CHAT COMPLETION REQUEST');
+  print('╠────────────────────────────────────────────────────────────────');
+  print('║ 🔗 URL      : $_apiEndpointUrl');
+  print('║ 🔑 JWT Token: $resolvedJwtToken');
+  print('║ 🤖 Model    : $rawModel ➔ Mapped to: $resolvedModel (Provider: $provider)');
+  print('║ 📦 Payload  :\n${const JsonEncoder.withIndent('  ').convert(payload)}');
+  print('╚════════════════════════════════════════════════════════════════');
+
+  try {
+    // First attempt using the active short-lived token
+    try {
+      return await callApiEndpoint(
+        _apiEndpointUrl,
+        payload,
+        jwtToken: resolvedJwtToken,
+      );
+    } catch (apiError) {
+      // If unauthorized due to edge case expiration, clear cache, fetch new token, and retry once
+      if (apiError.toString().contains('401') || apiError.toString().contains('Unauthorized')) {
+        print('⚠️ [AI_SERVICE] Token rejected (401). Refreshing token and retrying...');
+        await TokenService.clearToken();
+        resolvedJwtToken = await TokenService.getValidToken();
+        
+        return await callApiEndpoint(
+          _apiEndpointUrl,
+          payload,
+          jwtToken: resolvedJwtToken,
+        );
+      }
+      rethrow;
+    }
+  } catch (e, stackTrace) {
+    print('╔════════════════════════════════════════════════════════════════');
+    print('║ ❌ [AI_SERVICE] EXECUTION ERROR');
+    print('╠────────────────────────────────────────────────────────────────');
+    print('║ 🔗 URL       : $_apiEndpointUrl');
+    print('║ ⚠️ Error     : $e');
+    print('║ 📚 StackTrace:\n$stackTrace');
+    print('╚════════════════════════════════════════════════════════════════');
+    rethrow;
+  }
 }
 
 Future<void> getStreamingChatCompletion(
@@ -106,82 +161,13 @@ Future<void> getStreamingChatCompletion(
   required void Function(Exception error) onError,
   Map<String, dynamic> parameters = const {},
 }) async {
-  final targetUrl = _getProviderTargetUrl(provider);
-  final cleanModel = _sanitizeModel(rawModel);
-
-  final uri = Uri.parse(_chatCompletionEndpoint);
-  final dynamicEndpoint = uri
-      .replace(queryParameters: {...uri.queryParameters, 'url': targetUrl})
-      .toString();
-
-  // Extract response_format from parameters and place at root level
-  final mutableParams = Map<String, dynamic>.from(parameters);
-  final responseFormat = mutableParams.remove('response_format');
-
-  final bool isProxy = uri.host == 'connector.rocket.new';
-  final Map<String, dynamic> payload;
-
-  if (isProxy) {
-    // OpenAI/Gemini compatible payload format for direct CORS proxy forwarding
-    payload = <String, dynamic>{
-      'model': cleanModel,
-      'messages': messages,
-      'stream': true,
-      if (responseFormat != null) 'response_format': responseFormat,
-      ...mutableParams,
-    };
-  } else {
-    // Wrapper payload format for AWS Lambda function
-    payload = <String, dynamic>{
-      'provider': provider,
-      'model': cleanModel,
-      'messages': messages,
-      'stream': true,
-      if (responseFormat != null) 'response_format': responseFormat,
-      'parameters': mutableParams,
-    };
-  }
-
   try {
-    final dio = Dio();
-    final response = await dio.post<ResponseBody>(
-      dynamicEndpoint,
-      data: payload,
-      options: Options(
-        headers: {
-          'Content-Type': 'application/json',
-          if (isProxy) ..._getProviderHeaders(provider),
-        },
-        responseType: ResponseType.stream,
-      ),
-    );
-
-    String buffer = '';
-    await for (final chunk in response.data!.stream) {
-      buffer += utf8.decode(chunk);
-      final lines = buffer.split('\n');
-      buffer = lines.removeLast();
-
-      for (final line in lines) {
-        if (line.startsWith('data: ')) {
-          try {
-            final data = jsonDecode(line.substring(6)) as Map<String, dynamic>;
-            if (data['type'] == 'chunk' && data['chunk'] != null) {
-              onChunk(data['chunk'] as Map<String, dynamic>);
-            } else if (data['type'] == 'done') {
-              onComplete();
-            } else if (data['type'] == 'error') {
-              print(
-                'Lambda Function Error: ${data['error']}, details: ${data['details']}',
-              );
-              onError(Exception(data['error']));
-            }
-          } catch (_) {}
-        }
-      }
-    }
-  } catch (error) {
-    print('Streaming error: $error');
-    onError(error is Exception ? error : Exception(error.toString()));
+    print('⚠️ [AI_SERVICE:STREAM] Streaming requested, falling back to standard completion.');
+    final result = await getChatCompletion(provider, rawModel, messages, parameters: parameters);
+    onChunk(result);
+    onComplete();
+  } catch (e) {
+    print('❌ [AI_SERVICE:STREAM] Fallback error encountered: $e');
+    onError(e is Exception ? e : Exception(e.toString()));
   }
 }

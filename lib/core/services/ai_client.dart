@@ -1,46 +1,55 @@
+// lib/core/services/ai_client.dart
 import 'package:dio/dio.dart';
 
-final Dio _dio = Dio();
-
-Future<Map<String, dynamic>> callLambdaFunction(
+final Dio _dio = Dio()
+ ..interceptors.add(
+    LogInterceptor(
+      request: true,
+      requestHeader: true, // Logs outgoing request headers
+      requestBody: true,
+      responseHeader: true, // <-- This logs the incoming response headers
+      responseBody: true,
+      error: true,
+      logPrint: (object) => print('🌐 [DioLog]: $object'),
+    ),
+  );
+Future<Map<String, dynamic>> callApiEndpoint(
   String endpoint,
   Map<String, dynamic> payload, {
-  Map<String, String>? headers,
+  required String jwtToken,
 }) async {
   try {
     final response = await _dio.post<Map<String, dynamic>>(
       endpoint,
       data: payload,
-      options: Options(headers: {
-        'Content-Type': 'application/json',
-        ...?headers,
-      }),
+      options: Options(
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer $jwtToken',
+        },
+        validateStatus: (status) => status != null && status < 500,
+      ),
     );
+
+    final errorData = response.data;
+    if (response.statusCode != 200) {
+      if (errorData != null && errorData['error'] != null) {
+        throw Exception(errorData['error']);
+      }
+      throw Exception('Request failed with status: ${response.statusCode}');
+    }
+
     return response.data ?? {};
   } on DioException catch (error) {
-    if (error.response?.data != null) {
-      print('API Error Response Data: ${error.response?.data}');
-      if (error.response?.data is Map) {
-        final data = error.response?.data as Map<String, dynamic>;
-        if (data['error'] != null) {
-          print(
-            'Lambda Function Error: ${data['error']}, details: ${data['details']}',
-          );
-          throw Exception(data['error']);
-        }
-      } else if (error.response?.data is List) {
-        final dataList = error.response?.data as List;
-        if (dataList.isNotEmpty && dataList.first is Map) {
-          final errorObj = dataList.first['error'];
-          if (errorObj != null) {
-            final message = errorObj['message'] ?? errorObj.toString();
-            print('API Error Message: $message');
-            throw Exception(message);
-          }
-        }
+    final errorResponseData = error.response?.data;
+    if (errorResponseData != null && errorResponseData is Map) {
+      print('API Error Response Data: $errorResponseData');
+      if (errorResponseData['error'] != null) {
+        print('API Error: ${errorResponseData['error']}, message: ${errorResponseData['message']}');
+        throw Exception(errorResponseData['error']);
       }
     }
-    print('Lambda function error: $error');
+    print('HTTP request error: $error');
     rethrow;
   }
 }
