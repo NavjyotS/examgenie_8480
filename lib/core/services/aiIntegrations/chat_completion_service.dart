@@ -6,7 +6,7 @@ import '../ai_client.dart';
 // Pointing directly to your working Cloudflare Worker endpoint
 const String _apiEndpointUrl = String.fromEnvironment(
   'API_BASE_URL',
-  defaultValue: 'https://cloudflare-worker-process-getexamdata.navjyotsingh80.workers.dev/api/getExamData',
+  defaultValue: 'http://localhost:3000/api/getExamData',
 );
 
 Future<Map<String, dynamic>> getChatCompletion(

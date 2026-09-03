@@ -1,8 +1,18 @@
 // lib/core/services/ai_client.dart
 import 'package:dio/dio.dart';
 
-final Dio _dio = Dio();
-
+final Dio _dio = Dio()
+ ..interceptors.add(
+    LogInterceptor(
+      request: true,
+      requestHeader: true, // Logs outgoing request headers
+      requestBody: true,
+      responseHeader: true, // <-- This logs the incoming response headers
+      responseBody: true,
+      error: true,
+      logPrint: (object) => print('🌐 [DioLog]: $object'),
+    ),
+  );
 Future<Map<String, dynamic>> callApiEndpoint(
   String endpoint,
   Map<String, dynamic> payload, {
