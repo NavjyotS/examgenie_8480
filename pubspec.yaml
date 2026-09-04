@@ -9,7 +9,7 @@ environment:
 dependencies:
   flutter:       # CRITICAL: Required for every Flutter project - DO NOT REMOVE
     sdk: flutter # CRITICAL: Required for every Flutter project - DO NOT REMOVE
-  
+  envied: ^1.3.1
   flutter_secure_storage: ^9.0.0 # or latest version
   http: ^1.2.0
   # CRITICAL: Core UI and responsive design - DO NOT REMOVE OR MODIFY
@@ -33,14 +33,13 @@ dependencies:
 
 
   universal_html: ^2.2.4
-  envied: ^1.3.8
+  
 dev_dependencies:
   flutter_test:    # CRITICAL: Required for Flutter project testing - DO NOT REMOVE
     sdk: flutter   # CRITICAL: Required for Flutter project testing - DO NOT REMOVE
   flutter_lints: ^5.0.0 # CRITICAL: Required for code quality - DO NOT REMOVE
-  envied_generator: ^1.3.7
-  build_runner: ^2.16.1
-
+  build_runner: ^2.4.13
+  envied_generator: ^1.3.1
 flutter:
   uses-material-design: true # CRITICAL: Required for Material icon font - DO NOT REMOVE
   assets:
