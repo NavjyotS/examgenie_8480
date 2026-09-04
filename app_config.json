@@ -1,0 +1,5 @@
+{
+	"API_BASE_URL":"https://cloudflare-worker-process-getexamdata.navjyotsingh80.workers.dev/api/getExamData",
+	"TOKEN_BASE_URL":"https://cloudflare-worker-process-getexamdata.navjyotsingh80.workers.dev/api/token",
+	"DEVICE_API_KEY":"iamaapikeysecret2026"
+}
