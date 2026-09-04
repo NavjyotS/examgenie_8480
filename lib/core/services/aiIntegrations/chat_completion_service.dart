@@ -3,25 +3,9 @@ import 'dart:convert';
 import 'package:dio/dio.dart';
 import 'package:http/http.dart' as http;
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
+import 'package:exam_genie/env/env.dart';
 import '../ai_client.dart';
 
-// Pointing directly to your backend route handlers
-const String _apiEndpointUrl = String.fromEnvironment(
-  'API_BASE_URL',
-  defaultValue: 'http://localhost:3000/api/getExamData',
-);
-
-const String _tokenEndpointUrl = String.fromEnvironment(
-  'TOKEN_BASE_URL',
-  defaultValue: 'http://localhost:3000/api/token',
-);
-
-const String _deviceApiKey = String.fromEnvironment(
-  'DEVICE_API_KEY',
-  defaultValue: 'YOUR_API_KEY',
-);
-
-/// Service to handle short-lived JWT acquisition, caching, and rotation
 /// Service to handle short-lived JWT acquisition, caching, and rotation
 class TokenService {
   static final FlutterSecureStorage _storage = const FlutterSecureStorage();
@@ -37,11 +21,11 @@ class TokenService {
       }
     }
 
-    // Token is missing or approaching expiration — request a new one
+    // Token is missing or approaching expiration — request a new one using Envied keys
     final response = await http.post(
-      Uri.parse(_tokenEndpointUrl),
+      Uri.parse(Env.tokenBaseUrl),
       headers: {
-        'X-API-Key': _deviceApiKey,
+        'X-API-Key': Env.deviceApiKey,
         'Content-Type': 'application/json',
       },
     );
@@ -86,6 +70,7 @@ Future<Map<String, dynamic>> getChatCompletion(
   List<Map<String, dynamic>> messages, {
   Map<String, dynamic> parameters = const {},
 }) async {
+  final apiEndpointUrl = Env.apiBaseUrl;
   final mutableParams = Map<String, dynamic>.from(parameters);
   final responseFormat = mutableParams.remove('response_format');
 
@@ -111,7 +96,7 @@ Future<Map<String, dynamic>> getChatCompletion(
   print('╔════════════════════════════════════════════════════════════════');
   print('║ 📤 [AI_SERVICE] OUTGOING CHAT COMPLETION REQUEST');
   print('╠────────────────────────────────────────────────────────────────');
-  print('║ 🔗 URL      : $_apiEndpointUrl');
+  print('║ 🔗 URL      : $apiEndpointUrl');
   print('║ 🔑 JWT Token: $resolvedJwtToken');
   print('║ 🤖 Model    : $rawModel ➔ Mapped to: $resolvedModel (Provider: $provider)');
   print('║ 📦 Payload  :\n${const JsonEncoder.withIndent('  ').convert(payload)}');
@@ -121,7 +106,7 @@ Future<Map<String, dynamic>> getChatCompletion(
     // First attempt using the active short-lived token
     try {
       return await callApiEndpoint(
-        _apiEndpointUrl,
+        apiEndpointUrl,
         payload,
         jwtToken: resolvedJwtToken,
       );
@@ -133,7 +118,7 @@ Future<Map<String, dynamic>> getChatCompletion(
         resolvedJwtToken = await TokenService.getValidToken();
         
         return await callApiEndpoint(
-          _apiEndpointUrl,
+          apiEndpointUrl,
           payload,
           jwtToken: resolvedJwtToken,
         );
@@ -144,7 +129,7 @@ Future<Map<String, dynamic>> getChatCompletion(
     print('╔════════════════════════════════════════════════════════════════');
     print('║ ❌ [AI_SERVICE] EXECUTION ERROR');
     print('╠────────────────────────────────────────────────────────────────');
-    print('║ 🔗 URL       : $_apiEndpointUrl');
+    print('║ 🔗 URL       : $apiEndpointUrl');
     print('║ ⚠️ Error     : $e');
     print('║ 📚 StackTrace:\n$stackTrace');
     print('╚════════════════════════════════════════════════════════════════');
