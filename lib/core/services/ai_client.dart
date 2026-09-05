@@ -2,11 +2,11 @@
 import 'package:dio/dio.dart';
 
 final Dio _dio = Dio()
- ..interceptors.add(
+  ..interceptors.add(
     LogInterceptor(
       request: true,
       requestHeader: true, // Logs outgoing request headers
-      requestBody: true,
+      requestBody: false,
       responseHeader: true, // <-- This logs the incoming response headers
       responseBody: true,
       error: true,
@@ -45,7 +45,8 @@ Future<Map<String, dynamic>> callApiEndpoint(
     if (errorResponseData != null && errorResponseData is Map) {
       print('API Error Response Data: $errorResponseData');
       if (errorResponseData['error'] != null) {
-        print('API Error: ${errorResponseData['error']}, message: ${errorResponseData['message']}');
+        print(
+            'API Error: ${errorResponseData['error']}, message: ${errorResponseData['message']}');
         throw Exception(errorResponseData['error']);
       }
     }

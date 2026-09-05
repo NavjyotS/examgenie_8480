@@ -31,7 +31,6 @@ class TokenService {
     final tokenUrl = Env.tokenBaseUrl;
     print('🔗 [TOKEN_SERVICE] Requesting token from URL: "$tokenUrl"');
 
-    // Token is missing or approaching expiration — request a new one using configuration keys
     final response = await http.post(
       Uri.parse(tokenUrl),
       headers: {
@@ -106,19 +105,20 @@ Future<Map<String, dynamic>> getChatCompletion(
     rethrow;
   }
 
-  // Structured Log: Request Overview
+  // Cleaned Structured Log: Shows token availability (true/false) instead of the raw JWT string
+  final bool hasToken = resolvedJwtToken.isNotEmpty;
   print('╔════════════════════════════════════════════════════════════════');
   print('║ 📤 [AI_SERVICE] OUTGOING CHAT COMPLETION REQUEST');
   print('╠────────────────────────────────────────────────────────────────');
   print('║ 🔗 URL      : $apiEndpointUrl');
-  print('║ 🔑 JWT Token: $resolvedJwtToken');
+  print('║ 🔑 Token Available : $hasToken');
   print(
       '║ 🤖 Model    : $rawModel ➔ Mapped to: $resolvedModel (Provider: $provider)');
-  //print('║ 📦 Payload  :\n${const JsonEncoder.withIndent('  ').convert(payload)}');
+  print(
+      '║ 📦 Payload  : [Messages count: ${messages.length} - Base64 data hidden from log]');
   print('╚════════════════════════════════════════════════════════════════');
 
   try {
-    // First attempt using the active short-lived token
     try {
       return await callApiEndpoint(
         apiEndpointUrl,
@@ -126,7 +126,6 @@ Future<Map<String, dynamic>> getChatCompletion(
         jwtToken: resolvedJwtToken,
       );
     } catch (apiError) {
-      // If unauthorized due to edge case expiration, clear cache, fetch new token, and retry once
       if (apiError.toString().contains('401') ||
           apiError.toString().contains('Unauthorized')) {
         print(
