@@ -3,8 +3,14 @@ import 'dart:convert';
 import 'package:dio/dio.dart';
 import 'package:http/http.dart' as http;
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
-import 'package:exam_genie/env/env.dart';
 import '../ai_client.dart';
+
+/// Environment configuration using --dart-define-from-file
+class Env {
+  static const String apiBaseUrl = String.fromEnvironment('API_BASE_URL');
+  static const String tokenBaseUrl = String.fromEnvironment('TOKEN_BASE_URL');
+  static const String deviceApiKey = String.fromEnvironment('DEVICE_API_KEY');
+}
 
 /// Service to handle short-lived JWT acquisition, caching, and rotation
 class TokenService {
@@ -16,14 +22,18 @@ class TokenService {
 
     if (cached != null && expiryStr != null) {
       final expiry = DateTime.parse(expiryStr);
-      if (DateTime.now().isBefore(expiry.subtract(const Duration(minutes: 1)))) {
+      if (DateTime.now()
+          .isBefore(expiry.subtract(const Duration(minutes: 1)))) {
         return cached; // Token is still valid with buffer margin
       }
     }
 
-    // Token is missing or approaching expiration — request a new one using Envied keys
+    final tokenUrl = Env.tokenBaseUrl;
+    print('🔗 [TOKEN_SERVICE] Requesting token from URL: "$tokenUrl"');
+
+    // Token is missing or approaching expiration — request a new one using configuration keys
     final response = await http.post(
-      Uri.parse(Env.tokenBaseUrl),
+      Uri.parse(tokenUrl),
       headers: {
         'X-API-Key': Env.deviceApiKey,
         'Content-Type': 'application/json',
@@ -38,14 +48,16 @@ class TokenService {
       await _storage.write(key: 'jwt_token', value: token);
       await _storage.write(
         key: 'jwt_expiry',
-        value: DateTime.now()
-            .add(Duration(seconds: expiresIn))
-            .toIso8601String(),
+        value:
+            DateTime.now().add(Duration(seconds: expiresIn)).toIso8601String(),
       );
 
       return token;
     } else {
-      throw Exception('Failed to obtain short-lived JWT token: ${response.statusCode}');
+      print(
+          '❌ [TOKEN_SERVICE] Failed request to URL: "$tokenUrl" with status code: ${response.statusCode}');
+      throw Exception(
+          'Failed to obtain short-lived JWT token: ${response.statusCode}');
     }
   }
 
@@ -71,6 +83,8 @@ Future<Map<String, dynamic>> getChatCompletion(
   Map<String, dynamic> parameters = const {},
 }) async {
   final apiEndpointUrl = Env.apiBaseUrl;
+  print('🔗 [AI_SERVICE] Target API_BASE_URL being used: "$apiEndpointUrl"');
+
   final mutableParams = Map<String, dynamic>.from(parameters);
   final responseFormat = mutableParams.remove('response_format');
 
@@ -98,8 +112,9 @@ Future<Map<String, dynamic>> getChatCompletion(
   print('╠────────────────────────────────────────────────────────────────');
   print('║ 🔗 URL      : $apiEndpointUrl');
   print('║ 🔑 JWT Token: $resolvedJwtToken');
-  print('║ 🤖 Model    : $rawModel ➔ Mapped to: $resolvedModel (Provider: $provider)');
-  print('║ 📦 Payload  :\n${const JsonEncoder.withIndent('  ').convert(payload)}');
+  print(
+      '║ 🤖 Model    : $rawModel ➔ Mapped to: $resolvedModel (Provider: $provider)');
+  //print('║ 📦 Payload  :\n${const JsonEncoder.withIndent('  ').convert(payload)}');
   print('╚════════════════════════════════════════════════════════════════');
 
   try {
@@ -112,11 +127,13 @@ Future<Map<String, dynamic>> getChatCompletion(
       );
     } catch (apiError) {
       // If unauthorized due to edge case expiration, clear cache, fetch new token, and retry once
-      if (apiError.toString().contains('401') || apiError.toString().contains('Unauthorized')) {
-        print('⚠️ [AI_SERVICE] Token rejected (401). Refreshing token and retrying...');
+      if (apiError.toString().contains('401') ||
+          apiError.toString().contains('Unauthorized')) {
+        print(
+            '⚠️ [AI_SERVICE] Token rejected (401). Refreshing token and retrying...');
         await TokenService.clearToken();
         resolvedJwtToken = await TokenService.getValidToken();
-        
+
         return await callApiEndpoint(
           apiEndpointUrl,
           payload,
@@ -147,8 +164,10 @@ Future<void> getStreamingChatCompletion(
   Map<String, dynamic> parameters = const {},
 }) async {
   try {
-    print('⚠️ [AI_SERVICE:STREAM] Streaming requested, falling back to standard completion.');
-    final result = await getChatCompletion(provider, rawModel, messages, parameters: parameters);
+    print(
+        '⚠️ [AI_SERVICE:STREAM] Streaming requested, falling back to standard completion.');
+    final result = await getChatCompletion(provider, rawModel, messages,
+        parameters: parameters);
     onChunk(result);
     onComplete();
   } catch (e) {
