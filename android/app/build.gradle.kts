@@ -6,9 +6,11 @@ plugins {
 }
 
 android {
-    namespace = "com.example.examgenie"
+   namespace = "com.example.examgenie"
     compileSdk = flutter.compileSdkVersion
-    ndkVersion = flutter.ndkVersion
+    
+    // Override flutter.ndkVersion with your exact installed folder name
+    ndkVersion = "28.2.13676358" 
 
     compileOptions {
         isCoreLibraryDesugaringEnabled = true
